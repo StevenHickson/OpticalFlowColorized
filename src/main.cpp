@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 //
 
 #include <opencv2/opencv.hpp>
-#include <iostream>
+#include <fstream>
 #include <string.h>
 #include "OpticalFlow.h"
 
@@ -39,7 +39,7 @@ void Display2dOF(Mat flow) {
 	//translate magnitude to range [0;1]
 	double mag_min, mag_max;
 	cv::minMaxLoc(magnitude, &mag_min, &mag_max);
-	magnitude.convertTo(magnitude, -1, 1.0/mag_max);
+	magnitude.convertTo(magnitude, -1, 1.0 / mag_max);
 
 	//build hsv image
 	cv::Mat _hsv[3], hsv;
@@ -51,30 +51,54 @@ void Display2dOF(Mat flow) {
 	//convert to BGR and show
 	Mat bgr;//CV_32FC3 matrix
 	cv::cvtColor(hsv, bgr, cv::COLOR_HSV2BGR);
-	imshow("Optical flow",bgr);
+	imshow("Optical flow", bgr);
 }
 
-void ComputeAllFlow(string fileName) {
-
+void ComputeAllFlow(string direct, string fileName) {
+	ifstream videoFile(fileName.c_str());
+	string videoId;
+	int numFrames;
+	while (videoFile >> videoId >> numFrames) {
+		Mat current, past, flow;
+		//read direct + videoId + _ numFrames padded to 4
+		for (int i = 1; i <= numFrames; i++) {
+			char imgFile[500];
+			sprintf(imgFile, "%s%s_%04d.jpg", direct.c_str(), videoId.c_str(), i);
+			current = imread(imgFile);
+			if (i > 1) {
+				//do optical flow and write file
+				ComputeOpticalFlowGPU(past, current, flow);
+				sprintf(imgFile, "%sflow//%s_%04d.png", direct.c_str(), videoId.c_str(), i);
+				imwrite(imgFile, flow);
+			}
+			past = current;
+		}
+	}
 }
 
-int main (int argc, char** argv) {
+int main(int argc, char** argv) {
 	try {
-		Mat img1 = imread(argv[1]);
-		Mat img2 = imread(argv[2]);
-		Mat flow;
-		int run = atoi(argv[3]);
-		if (run == 0)
+		int run = atoi(argv[1]);
+		if (run == 0) {
+			Mat img1 = imread(argv[2]);
+			Mat img2 = imread(argv[3]);
+			Mat flow;
 			ComputeOpticalFlowGPU(img1, img2, flow);
-		else if (run == 1)
+		}
+		else if (run == 1) {
+			Mat img1 = imread(argv[2]);
+			Mat img2 = imread(argv[3]);
+			Mat flow;
 			ComputeOpticalFlow(img1, img2, flow);
+		}
 		else {
-
+			ComputeAllFlow(argv[2], argv[3]);
 		}
 		//imshow("img", img1);
 		//imshow("flow", flow);
 		//waitKey(0);
-	} catch (std::exception &e) {
+	}
+	catch (std::exception &e) {
 		cout << e.what() << endl;
 	}
 	cout << "Done" << endl;
